@@ -92,13 +92,22 @@ def create_app(test_config=None) -> Flask:
         logger.error(f"Internal server error: {e}")
         return jsonify({"error": "Internal server error"}), 500
 
-    # Startup Ledger Genesis and In-Doubt Recovery
+    # Startup Ledger Genesis, In-Doubt Recovery and Auto-Seed
     with app.app_context():
         try:
             from backend.services.ledger import ensure_genesis
             from backend.services.settlement import recover_in_doubt_transactions
+            from backend.db.connection import is_mock_mode
+            from backend.db.mock_store import mock_db
             ensure_genesis()
             recover_in_doubt_transactions()
+
+            # If mock DB is active and empty (and not in testing mode), automatically seed baseline plots
+            is_testing = app.config.get("TESTING", False) or os.getenv("FLASK_ENV") == "testing"
+            if is_mock_mode() and len(mock_db.plots) == 0 and not is_testing:
+                logger.info("Initializing baseline seed plots into in-memory mock database...")
+                from scripts.seed import seed_database
+                seed_database()
         except Exception as startup_err:
             logger.warning(f"Startup task notice: {startup_err}")
 

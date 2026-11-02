@@ -120,15 +120,34 @@ export class PlotViewer3D {
 
     if (!plots || plots.length === 0) return;
 
-    // Calculate global centroid from first polygon
+    // Calculate global centroid from average coordinates across all plots
     try {
-      const firstCoords = plots[0].geojson.coordinates[0];
-      this.centroid = { lon: firstCoords[0][0], lat: firstCoords[0][1] };
+      let sumLon = 0, sumLat = 0, count = 0;
+      plots.forEach(p => {
+        if (p.geojson && p.geojson.coordinates && p.geojson.coordinates[0]) {
+          p.geojson.coordinates[0].forEach(c => {
+            sumLon += c[0];
+            sumLat += c[1];
+            count++;
+          });
+        }
+      });
+      if (count > 0) {
+        this.centroid = { lon: sumLon / count, lat: sumLat / count };
+      }
     } catch (e) {
-      this.centroid = { lon: 77.5946, lat: 12.9716 };
+      this.centroid = { lon: 77.6350, lat: 12.9700 };
     }
 
     plots.forEach(plot => this.createPlotMesh(plot));
+
+    // Auto-fit camera to parcels centroid
+    if (this.controls) {
+      this.controls.target.set(0, 0, 0);
+      this.camera.position.set(0, 160, 240);
+      this.camera.lookAt(0, 0, 0);
+      this.controls.update();
+    }
   }
 
   createPlotMesh(plot) {
