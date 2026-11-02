@@ -76,7 +76,8 @@
 
         <!-- Place Order Form -->
         <div id="order-form-section" class="hidden">
-          <h3 style="font-size: 0.95rem; margin-bottom: 8px;">Submit Signed Order</h3>
+          <h3 id="order-form-title" style="font-size: 0.95rem; margin-bottom: 8px;">Submit Signed Order</h3>
+          <p id="seller-ownership-notice" class="hidden" style="font-size: 0.8rem; color: #38bdf8; margin-bottom: 8px;"></p>
           <form id="order-form" style="display: flex; flex-direction: column; gap: 12px;">
             <div class="form-group">
               <label>Order Type</label>
@@ -196,11 +197,63 @@
       document.getElementById('order-form-section').classList.remove('hidden');
       loadOrderBook(plot.plot_id);
 
-      // Staff actions visibility
-      if (currentUser && (currentUser.role === 'registry_admin' || currentUser.role === 'court')) {
-        document.getElementById('staff-section').classList.remove('hidden');
+      // Role-specific adaptations for Order Form
+      const orderTypeSelect = document.getElementById('order-type-select');
+      const orderFormTitle = document.getElementById('order-form-title');
+      const sellerNotice = document.getElementById('seller-ownership-notice');
+      const isOwner = currentUser && currentUser.owner && plot.owner_id === currentUser.owner.owner_id;
+
+      if (currentUser) {
+        if (currentUser.role === 'buyer') {
+          orderFormTitle.textContent = 'Place Purchase Bid (Buyer)';
+          orderTypeSelect.innerHTML = '<option value="BID">Bid (Buy Land)</option>';
+          orderTypeSelect.disabled = true;
+          sellerNotice.classList.add('hidden');
+        } else if (currentUser.role === 'owner_seller') {
+          if (isOwner) {
+            orderFormTitle.textContent = 'List Plot for Sale (Seller / Owner)';
+            orderTypeSelect.innerHTML = '<option value="ASK">Ask (Sell Land)</option>';
+            orderTypeSelect.disabled = true;
+            sellerNotice.textContent = '★ You own this plot. Set your asking price to list it on the exchange.';
+            sellerNotice.classList.remove('hidden');
+          } else {
+            orderFormTitle.textContent = 'Submit Bid Offer (Secondary)';
+            orderTypeSelect.innerHTML = '<option value="BID">Bid (Buy Land)</option>';
+            orderTypeSelect.disabled = true;
+            sellerNotice.classList.add('hidden');
+          }
+        } else {
+          // Staff role
+          orderTypeSelect.disabled = false;
+          orderTypeSelect.innerHTML = '<option value="BID">Bid (Buy Land)</option><option value="ASK">Ask (Sell Land)</option>';
+          sellerNotice.classList.add('hidden');
+        }
+      }
+
+      // Staff actions visibility: registry_admin vs court vs customer
+      const staffSection = document.getElementById('staff-section');
+      const btnAdminClear = document.getElementById('btn-admin-clear');
+      const btnCourtInj = document.getElementById('btn-court-injunction');
+      const btnCourtLift = document.getElementById('btn-court-lift');
+
+      if (currentUser && (currentUser.role === 'registry_admin' || currentUser.role === 'court' || currentUser.role === 'sys_admin')) {
+        staffSection.classList.remove('hidden');
+        if (currentUser.role === 'court') {
+          btnAdminClear.classList.add('hidden');
+          btnCourtInj.classList.remove('hidden');
+          btnCourtLift.classList.remove('hidden');
+        } else if (currentUser.role === 'registry_admin') {
+          btnAdminClear.classList.remove('hidden');
+          btnCourtInj.classList.add('hidden');
+          btnCourtLift.classList.add('hidden');
+        } else {
+          // sys_admin has access to both
+          btnAdminClear.classList.remove('hidden');
+          btnCourtInj.classList.remove('hidden');
+          btnCourtLift.classList.remove('hidden');
+        }
       } else {
-        document.getElementById('staff-section').classList.add('hidden');
+        staffSection.classList.add('hidden');
       }
     }
 
