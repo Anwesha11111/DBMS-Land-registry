@@ -1,0 +1,13 @@
+Flask==3.0.3
+Werkzeug==3.0.3
+psycopg2-binary==2.9.12
+pymongo==4.19.0
+bcrypt==5.0.0
+PyJWT==2.12.1
+cryptography==44.0.0
+pyotp==2.10.0
+shapely==2.2.0
+reportlab==4.4.9
+python-dotenv==1.2.2
+pytest==9.0.2
+requests==2.33.1

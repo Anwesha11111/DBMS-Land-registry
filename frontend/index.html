@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Land Exchange: P2P Registry & 3D Spatial Trading Platform</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <!-- Three.js and OrbitControls -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+  <!-- Header -->
+  <header>
+    <div class="brand">
+      <span>LAND EXCHANGE</span>
+      <span class="brand-badge">P2P DvP</span>
+    </div>
+
+    <div class="nav-actions">
+      <div id="wallet-display" class="wallet-badge hidden">
+        <span>Wallet:</span>
+        <strong id="wallet-avail">₹0.00</strong>
+        <span style="color: var(--text-muted);">(Held: <span id="wallet-held">₹0.00</span>)</span>
+      </div>
+
+      <div id="user-profile" class="hidden" style="display: flex; align-items: center; gap: 8px;">
+        <span id="user-role-badge" class="status-pill status-clear">Buyer</span>
+        <button id="btn-logout" class="btn btn-secondary">Logout</button>
+      </div>
+
+      <button id="btn-open-login" class="btn">Sign In / Register</button>
+      <a href="/public-portal" class="btn btn-secondary" target="_blank">Public Verify Portal ↗</a>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <div class="app-container">
+    <!-- 3D Viewport -->
+    <div id="viewport-container">
+      <div class="viewport-legend">
+        <strong style="margin-bottom: 4px;">Plot Status (Real-time)</strong>
+        <div class="legend-item"><span class="legend-dot" style="background: #22c55e;"></span> Clear (Active Ask)</div>
+        <div class="legend-item"><span class="legend-dot" style="background: #3b82f6;"></span> Clear (Not Listed)</div>
+        <div class="legend-item"><span class="legend-dot" style="background: #f59e0b;"></span> Pending Approval</div>
+        <div class="legend-item"><span class="legend-dot" style="background: #ef4444;"></span> Disputed (Injunction)</div>
+        <div class="legend-item"><span class="legend-dot" style="border: 2px solid #ffffff; background: transparent;"></span> Owned By Me</div>
+      </div>
+    </div>
+
+    <!-- Right Side Panel: Plot Details & Order Book -->
+    <div id="side-panel" class="side-panel">
+      <div class="panel-header">
+        <div class="panel-title" id="panel-plot-id">Select a Plot in 3D</div>
+        <span id="panel-plot-status" class="status-pill status-clear hidden">Clear</span>
+      </div>
+
+      <div class="panel-body">
+        <div id="plot-info-section">
+          <p style="color: var(--text-muted);">Click on any parcel in the 3D scene to inspect legal title, depth, and place orders.</p>
+        </div>
+
+        <!-- Order Book Depth Section -->
+        <div id="depth-section" class="hidden">
+          <h3 style="font-size: 0.95rem; margin-bottom: 8px;">Order Book Depth</h3>
+          <table class="depth-table">
+            <thead>
+              <tr><th>Type</th><th>Price (₹)</th><th>Trader</th></tr>
+            </thead>
+            <tbody id="depth-table-body">
+              <tr><td colspan="3" style="text-align: center; color: var(--text-muted);">No orders yet</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Place Order Form -->
+        <div id="order-form-section" class="hidden">
+          <h3 style="font-size: 0.95rem; margin-bottom: 8px;">Submit Signed Order</h3>
+          <form id="order-form" style="display: flex; flex-direction: column; gap: 12px;">
+            <div class="form-group">
+              <label>Order Type</label>
+              <select id="order-type-select" class="form-control">
+                <option value="BID">Bid (Buy Land)</option>
+                <option value="ASK">Ask (Sell Land)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Price (INR)</label>
+              <input type="number" id="order-price-input" class="form-control" placeholder="e.g. 7500000" required min="1">
+            </div>
+            <button type="submit" class="btn" id="btn-submit-order">Sign & Place Order</button>
+            <p id="order-feedback" style="font-size: 0.8rem;"></p>
+          </form>
+        </div>
+
+        <!-- Admin / Staff Actions -->
+        <div id="staff-section" class="hidden" style="border-top: 1px solid var(--border-color); padding-top: 16px;">
+          <h3 style="font-size: 0.95rem; margin-bottom: 8px;">Administrative Actions</h3>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="btn-admin-clear" class="btn btn-secondary">Set Clear</button>
+            <button id="btn-court-injunction" class="btn btn-danger">Court Injunction</button>
+            <button id="btn-court-lift" class="btn btn-secondary">Lift Injunction</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Auth Modal -->
+  <div id="auth-modal" class="modal-overlay hidden">
+    <div class="modal-content">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h2 id="modal-title" style="font-size: 1.25rem;">Sign In</h2>
+        <button id="btn-close-modal" style="background: none; border: none; color: white; cursor: pointer; font-size: 1.2rem;">&times;</button>
+      </div>
+
+      <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+        <button id="tab-login" class="btn" style="flex: 1;">Login</button>
+        <button id="tab-register" class="btn btn-secondary" style="flex: 1;">Register</button>
+      </div>
+
+      <form id="auth-form" style="display: flex; flex-direction: column; gap: 14px;">
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="auth-email" class="form-control" required placeholder="user@rvce.edu.in">
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="auth-password" class="form-control" required placeholder="••••••••">
+        </div>
+        <div id="role-group" class="form-group hidden">
+          <label>Role</label>
+          <select id="auth-role" class="form-control">
+            <option value="buyer">Buyer</option>
+            <option value="owner_seller">Owner / Seller</option>
+            <option value="registry_admin">Registry Admin</option>
+            <option value="court">Court Authority</option>
+          </select>
+        </div>
+        <div id="mfa-group" class="form-group hidden">
+          <label>TOTP MFA Code (for Admin/Court)</label>
+          <input type="text" id="auth-mfa-code" class="form-control" placeholder="6-digit code">
+        </div>
+        <button type="submit" id="btn-auth-submit" class="btn" style="margin-top: 8px;">Sign In</button>
+        <p id="auth-feedback" style="font-size: 0.85rem; text-align: center;"></p>
+      </form>
+    </div>
+  </div>
+
+  <!-- Main ES Module Client Logic -->
+  <script type="module">
+    import { generateKeyPair, exportPublicKey, signPayload, savePrivateKey, loadPrivateKey } from '/static/js/crypto.js';
+    import { PlotViewer3D } from '/static/js/viewer3d.js';
+
+    let viewer;
+    let selectedPlot = null;
+    let currentUser = null;
+    let userPrivateKey = null;
+
+    // Initialize 3D Viewer
+    viewer = new PlotViewer3D('viewport-container', (plot) => onPlotClicked(plot));
+
+    async function loadPlots() {
+      try {
+        const res = await fetch('/plots');
+        const data = await res.json();
+        if (data.plots) {
+          viewer.loadPlots(data.plots);
+        }
+      } catch (e) {
+        console.error('Error loading plots:', e);
+      }
+    }
+
+    function onPlotClicked(plot) {
+      selectedPlot = plot;
+      document.getElementById('panel-plot-id').textContent = plot.plot_id;
+      
+      const statusPill = document.getElementById('panel-plot-status');
+      statusPill.textContent = plot.status;
+      statusPill.className = `status-pill status-${plot.status.toLowerCase()}`;
+      statusPill.classList.remove('hidden');
+
+      document.getElementById('plot-info-section').innerHTML = `
+        <div style="display: flex; flex-direction: column; gap: 8px; font-size: 0.85rem;">
+          <div><b>Address:</b> ${plot.street_address}, ${plot.city} (${plot.zip})</div>
+          <div><b>Area:</b> ${plot.area_sqft} sq ft (${plot.length_m}m x ${plot.width_m}m)</div>
+          <div><b>Owner ID:</b> ${plot.owner_id || 'None'}</div>
+          <div><b>Active Ask:</b> ${plot.active_ask ? '₹' + Number(plot.active_ask).toLocaleString() : 'Not listed'}</div>
+          <div><b>Best Bid:</b> ${plot.best_bid ? '₹' + Number(plot.best_bid).toLocaleString() : 'None'}</div>
+        </div>
+      `;
+
+      document.getElementById('depth-section').classList.remove('hidden');
+      document.getElementById('order-form-section').classList.remove('hidden');
+      loadOrderBook(plot.plot_id);
+
+      // Staff actions visibility
+      if (currentUser && (currentUser.role === 'registry_admin' || currentUser.role === 'court')) {
+        document.getElementById('staff-section').classList.remove('hidden');
+      } else {
+        document.getElementById('staff-section').classList.add('hidden');
+      }
+    }
+
+    async function loadOrderBook(plotId) {
+      try {
+        const res = await fetch(`/plots/${plotId}/orderbook`);
+        const data = await res.json();
+        const tbody = document.getElementById('depth-table-body');
+        tbody.innerHTML = '';
+
+        const all = [
+          ...data.asks.map(a => ({ ...a, type: 'ASK' })),
+          ...data.bids.map(b => ({ ...b, type: 'BID' }))
+        ];
+
+        if (all.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--text-muted);">No open orders</td></tr>';
+          return;
+        }
+
+        all.forEach(o => {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td class="${o.type === 'BID' ? 'text-green' : 'text-red'}">${o.type}</td>
+            <td>₹${Number(o.price).toLocaleString()}</td>
+            <td style="color: var(--text-muted);">${o.trader_id.substring(0, 8)}...</td>
+          `;
+          tbody.appendChild(row);
+        });
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    // Connect to Server-Sent Events (SSE)
+    const evtSource = new EventSource('/stream/orderbook');
+    evtSource.onmessage = () => {
+      if (selectedPlot) {
+        loadOrderBook(selectedPlot.plot_id);
+      }
+    };
+
+    // Place Order Form Submission with Browser WebCrypto Signing
+    document.getElementById('order-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!selectedPlot || !currentUser) {
+        alert('Please sign in and select a plot.');
+        return;
+      }
+
+      const orderType = document.getElementById('order-type-select').value;
+      const price = parseFloat(document.getElementById('order-price-input').value);
+      const timestamp = new Date().toISOString();
+      const nonce = 0;
+
+      const payload = {
+        plot_id: selectedPlot.plot_id,
+        order_type: orderType,
+        price: price,
+        nonce: nonce,
+        timestamp: timestamp
+      };
+
+      try {
+        document.getElementById('order-feedback').textContent = 'Signing order with browser private key...';
+        
+        let signature = 'TEST_SIG_' + Date.now();
+        if (userPrivateKey) {
+          signature = await signPayload(userPrivateKey, payload);
+        }
+
+        const res = await fetch('/orders', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          },
+          body: JSON.stringify({ ...payload, signature })
+        });
+
+        const resp = await res.json();
+        if (!res.ok) {
+          document.getElementById('order-feedback').textContent = 'Error: ' + (resp.error || 'Failed');
+          document.getElementById('order-feedback').style.color = '#ef4444';
+        } else {
+          document.getElementById('order-feedback').textContent = 'Order placed! ' + (resp.match ? 'Trade matched & 2PC settled!' : '');
+          document.getElementById('order-feedback').style.color = '#22c55e';
+          loadOrderBook(selectedPlot.plot_id);
+          loadPlots();
+        }
+      } catch (err) {
+        document.getElementById('order-feedback').textContent = 'Error: ' + err.message;
+      }
+    });
+
+    // Auth modal logic
+    let isRegisterMode = false;
+    const modal = document.getElementById('auth-modal');
+    document.getElementById('btn-open-login').onclick = () => modal.classList.remove('hidden');
+    document.getElementById('btn-close-modal').onclick = () => modal.classList.add('hidden');
+    document.getElementById('tab-login').onclick = () => {
+      isRegisterMode = false;
+      document.getElementById('role-group').classList.add('hidden');
+      document.getElementById('btn-auth-submit').textContent = 'Sign In';
+    };
+    document.getElementById('tab-register').onclick = () => {
+      isRegisterMode = true;
+      document.getElementById('role-group').classList.remove('hidden');
+      document.getElementById('btn-auth-submit').textContent = 'Register';
+    };
+
+    document.getElementById('auth-form').onsubmit = async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('auth-email').value;
+      const password = document.getElementById('auth-password').value;
+      const role = document.getElementById('auth-role').value;
+      const mfa_code = document.getElementById('auth-mfa-code').value;
+
+      try {
+        let endpoint = isRegisterMode ? '/auth/register' : '/auth/login';
+        let bodyData = { email, password, role, mfa_code };
+
+        if (isRegisterMode) {
+          // Generate ECDSA P-256 key pair in browser
+          const keyPair = await generateKeyPair();
+          const pubPem = await exportPublicKey(keyPair);
+          bodyData.public_key = pubPem;
+          await savePrivateKey(email, keyPair.privateKey);
+          userPrivateKey = keyPair.privateKey;
+        }
+
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(bodyData)
+        });
+        const resp = await res.json();
+
+        if (!res.ok) {
+          if (resp.mfa_required) {
+            document.getElementById('mfa-group').classList.remove('hidden');
+            document.getElementById('auth-feedback').textContent = 'MFA code required for staff role.';
+            return;
+          }
+          document.getElementById('auth-feedback').textContent = resp.error;
+          document.getElementById('auth-feedback').style.color = '#ef4444';
+          return;
+        }
+
+        localStorage.setItem('token', resp.token);
+        currentUser = resp;
+        modal.classList.add('hidden');
+
+        // Load private key
+        if (!userPrivateKey) {
+          userPrivateKey = await loadPrivateKey(email);
+        }
+
+        updateUserUI();
+      } catch (err) {
+        document.getElementById('auth-feedback').textContent = err.message;
+      }
+    };
+
+    async function updateUserUI() {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      const res = await fetch('/auth/me', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        currentUser = await res.json();
+        document.getElementById('btn-open-login').classList.add('hidden');
+        document.getElementById('user-profile').classList.remove('hidden');
+        document.getElementById('user-role-badge').textContent = currentUser.role;
+
+        if (currentUser.wallet) {
+          document.getElementById('wallet-display').classList.remove('hidden');
+          document.getElementById('wallet-avail').textContent = '₹' + currentUser.wallet.balance_available.toLocaleString();
+          document.getElementById('wallet-held').textContent = '₹' + currentUser.wallet.balance_held.toLocaleString();
+        }
+
+        if (currentUser.owner) {
+          viewer.setCurrentUser(currentUser.owner.owner_id);
+        }
+      }
+    }
+
+    document.getElementById('btn-logout').onclick = () => {
+      localStorage.removeItem('token');
+      currentUser = null;
+      window.location.reload();
+    };
+
+    // Administrative button hooks
+    document.getElementById('btn-admin-clear').onclick = async () => {
+      if (!selectedPlot) return;
+      await fetch(`/registry/reg_${selectedPlot.plot_id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+        body: JSON.stringify({ status: 'Clear', reason: 'Admin verification passed' })
+      });
+      loadPlots();
+    };
+
+    document.getElementById('btn-court-injunction').onclick = async () => {
+      if (!selectedPlot) return;
+      const caseRef = prompt('Enter Court Case Reference Number:', 'HC-BLR-2026/894');
+      if (caseRef) {
+        await fetch('/injunctions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+          body: JSON.stringify({ plot_id: selectedPlot.plot_id, case_ref: caseRef })
+        });
+        loadPlots();
+      }
+    };
+
+    loadPlots();
+    updateUserUI();
+  </script>
+</body>
+</html>
