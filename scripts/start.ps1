@@ -13,4 +13,4 @@ try {
 
 # Start Flask Backend
 Write-Host "Starting Flask consensus engine on port 5000..." -ForegroundColor Green
-python backend/app.py
+python run.py
