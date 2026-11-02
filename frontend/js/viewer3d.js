@@ -210,6 +210,110 @@ export class PlotViewer3D {
   initInteraction() {
     this.raycaster = new THREE.Raycaster();
     this.mouse = new THREE.Vector2();
+    this.hoveredMesh = null;
+    this.hoveredMeshOrigColor = null;
+    this.tooltipElement = document.getElementById('plot-tooltip');
+
+    // Mouse move: Raycast for hovering effects, cursor change, and floating tooltip
+    this.container.addEventListener('mousemove', (event) => {
+      const rect = this.container.getBoundingClientRect();
+      this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+      this.raycaster.setFromCamera(this.mouse, this.camera);
+      const intersects = this.raycaster.intersectObjects(this.scene.children, true);
+
+      let foundGroup = null;
+      if (intersects.length > 0) {
+        let target = intersects[0].object;
+        while (target.parent && target.parent !== this.scene && !target.userData.plot) {
+          target = target.parent;
+        }
+        if (target.userData && target.userData.plot) {
+          foundGroup = target;
+        }
+      }
+
+      if (foundGroup) {
+        this.container.style.cursor = 'pointer';
+        const plot = foundGroup.userData.plot;
+        const mesh = foundGroup.userData.mesh;
+
+        // Highlight mesh on hover
+        if (this.hoveredMesh !== mesh) {
+          if (this.hoveredMesh && this.hoveredMeshOrigColor !== null) {
+            this.hoveredMesh.material.color.setHex(this.hoveredMeshOrigColor);
+          }
+          this.hoveredMesh = mesh;
+          this.hoveredMeshOrigColor = this.getPlotColor(plot);
+          // Brighten mesh color slightly on hover
+          const hoverColor = new THREE.Color(this.hoveredMeshOrigColor).offsetHSL(0, 0.05, 0.15);
+          mesh.material.color.copy(hoverColor);
+        }
+
+        // Show floating tooltip
+        if (this.tooltipElement) {
+          const isAvailable = plot.status === 'Clear' && plot.active_ask !== null && plot.active_ask !== undefined;
+          const statusColor = plot.status === 'Disputed' ? '#ef4444' : (plot.status === 'Pending' ? '#f59e0b' : (isAvailable ? '#22c55e' : '#3b82f6'));
+          const availabilityBadge = isAvailable
+            ? '<span class="tooltip-badge" style="background: rgba(34, 197, 94, 0.2); color: #4ade80;">Available for Sale</span>'
+            : (plot.status === 'Clear' 
+                ? '<span class="tooltip-badge" style="background: rgba(59, 130, 246, 0.2); color: #60a5fa;">Not Listed</span>'
+                : `<span class="tooltip-badge" style="background: rgba(239, 68, 68, 0.2); color: #f87171;">${plot.status}</span>`);
+
+          const priceHtml = plot.active_ask
+            ? `₹${Number(plot.active_ask).toLocaleString()}`
+            : (plot.best_bid ? `Best Bid: ₹${Number(plot.best_bid).toLocaleString()}` : '<span style="color:#94a3b8">No Active Ask</span>');
+
+          this.tooltipElement.innerHTML = `
+            <div class="tooltip-header">
+              <span>${plot.plot_id}</span>
+              ${availabilityBadge}
+            </div>
+            <div class="tooltip-row">
+              <span>Address:</span>
+              <strong style="max-width: 140px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">${plot.street_address || 'Bengaluru Parcel'}</strong>
+            </div>
+            <div class="tooltip-row">
+              <span>Area:</span>
+              <span>${plot.area_sqft ? Math.round(plot.area_sqft).toLocaleString() + ' sq ft' : '--'}</span>
+            </div>
+            <div class="tooltip-row" style="margin-top: 6px; padding-top: 4px; border-top: 1px dashed rgba(255,255,255,0.1);">
+              <span style="font-weight: 600;">Price:</span>
+              <strong style="color: ${isAvailable ? '#4ade80' : '#f8fafc'}; font-size: 0.9rem;">${priceHtml}</strong>
+            </div>
+          `;
+
+          // Position tooltip relative to container, offset slightly from mouse
+          const posX = event.clientX - rect.left + 15;
+          const posY = event.clientY - rect.top + 15;
+          this.tooltipElement.style.left = `${posX}px`;
+          this.tooltipElement.style.top = `${posY}px`;
+          this.tooltipElement.classList.remove('hidden');
+        }
+      } else {
+        this.container.style.cursor = 'default';
+        if (this.hoveredMesh && this.hoveredMeshOrigColor !== null) {
+          this.hoveredMesh.material.color.setHex(this.hoveredMeshOrigColor);
+          this.hoveredMesh = null;
+          this.hoveredMeshOrigColor = null;
+        }
+        if (this.tooltipElement) {
+          this.tooltipElement.classList.add('hidden');
+        }
+      }
+    });
+
+    this.container.addEventListener('mouseleave', () => {
+      if (this.hoveredMesh && this.hoveredMeshOrigColor !== null) {
+        this.hoveredMesh.material.color.setHex(this.hoveredMeshOrigColor);
+        this.hoveredMesh = null;
+        this.hoveredMeshOrigColor = null;
+      }
+      if (this.tooltipElement) {
+        this.tooltipElement.classList.add('hidden');
+      }
+    });
 
     this.container.addEventListener('click', (event) => {
       const rect = this.container.getBoundingClientRect();

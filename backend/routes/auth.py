@@ -1,6 +1,7 @@
 # backend/routes/auth.py
 import uuid
 import hashlib
+import pyotp
 # pyrefly: ignore [missing-import]
 from flask import Blueprint, request, jsonify
 from backend.services.auth import (
@@ -67,11 +68,11 @@ def register():
             # Fallback public key placeholder if not generated in browser yet
             public_key = f"TEST_PUBKEY_{owner_id}"
 
-            if is_mock_mode():
-                # Check kyc_hash uniqueness
-                for o in mock_db.owners.values():
-                    if o.get("kyc_hash") == kyc_hash:
-                        return jsonify({"error": "Duplicate KYC document hash detected."}), 409
+        if is_mock_mode():
+            # Check kyc_hash uniqueness
+            for o in mock_db.owners.values():
+                if o.get("kyc_hash") == kyc_hash:
+                    return jsonify({"error": "Duplicate KYC document hash detected."}), 409
 
             mock_db.owners[owner_id] = {
                 "owner_id": owner_id,

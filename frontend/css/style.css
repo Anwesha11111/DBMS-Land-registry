@@ -169,6 +169,55 @@ header {
   border-radius: 3px;
 }
 
+/* 3D Floating Hover Tooltip */
+.plot-hover-tooltip {
+  position: absolute;
+  pointer-events: none;
+  background: rgba(15, 23, 42, 0.94);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 10px 14px;
+  border-radius: 8px;
+  color: #f8fafc;
+  font-size: 0.82rem;
+  z-index: 100;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6);
+  transition: opacity 0.12s ease;
+  min-width: 190px;
+}
+
+.plot-hover-tooltip.hidden {
+  display: none;
+  opacity: 0;
+}
+
+.plot-hover-tooltip .tooltip-header {
+  font-weight: 700;
+  margin-bottom: 6px;
+  color: #38bdf8;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 4px;
+}
+
+.plot-hover-tooltip .tooltip-row {
+  display: flex;
+  justify-content: space-between;
+  margin: 3px 0;
+  color: #cbd5e1;
+}
+
+.plot-hover-tooltip .tooltip-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
 /* Side Panels */
 .side-panel {
   width: 420px;
