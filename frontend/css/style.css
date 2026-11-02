@@ -142,7 +142,7 @@ header {
 /* 3D Legend */
 .viewport-legend {
   position: absolute;
-  top: 16px;
+  top: 60px;
   left: 16px;
   background: var(--bg-card);
   backdrop-filter: blur(8px);
@@ -155,6 +155,46 @@ header {
   gap: 8px;
   pointer-events: auto;
   z-index: 10;
+}
+
+/* Map Lens Filter Bar */
+.map-lens-container {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--border-color);
+  padding: 6px 12px;
+  border-radius: 8px;
+  z-index: 10;
+}
+
+.btn-lens {
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border-radius: 6px;
+  background: transparent;
+  color: #94a3b8;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-lens:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f8fafc;
+}
+
+.btn-lens.active {
+  background: #3b82f6;
+  color: #ffffff;
+  border-color: #60a5fa;
+  font-weight: 600;
 }
 
 .legend-item {

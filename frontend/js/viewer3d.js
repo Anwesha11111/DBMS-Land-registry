@@ -18,14 +18,22 @@ export class PlotViewer3D {
     this.plotMeshes = new Map();
     this.centroid = { lon: 77.5946, lat: 12.9716 }; // Bengaluru default
     this.currentUserOwnerId = null;
+    this.currentUserRole = 'public'; // 'public' | 'buyer' | 'owner_seller' | 'registry_admin' | 'court'
+    this.viewFilter = 'all'; // 'all' | 'available' | 'my_plots' | 'pending' | 'disputed'
 
     this.initScene();
     this.initInteraction();
     this.animate();
   }
 
-  setCurrentUser(ownerId) {
+  setCurrentUser(ownerId, role = 'buyer') {
     this.currentUserOwnerId = ownerId;
+    this.currentUserRole = role;
+    this.updateMeshStyles();
+  }
+
+  setViewFilter(filter) {
+    this.viewFilter = filter;
     this.updateMeshStyles();
   }
 
@@ -182,16 +190,39 @@ export class PlotViewer3D {
   }
 
   getPlotColor(plot) {
-    // Real-time state color rule
+    const isOwner = this.currentUserOwnerId && plot.owner_id === this.currentUserOwnerId;
+    const isListed = plot.status === 'Clear' && plot.active_ask !== null && plot.active_ask !== undefined;
+
+    // 1. Seller Map Lens: Emphasize parcels owned by seller
+    if (this.currentUserRole === 'owner_seller') {
+      if (isOwner) {
+        return isListed ? 0x10b981 : 0x8b5cf6; // Emerald Green if Listed for sale, Vivid Violet if Owned but not yet listed
+      }
+      // Non-owned plots appear dimmed slate
+      return isListed ? 0x334155 : 0x1e293b;
+    }
+
+    // 2. Admin / Municipal Authority Map Lens: Emphasize verification workflow
+    if (this.currentUserRole === 'registry_admin' || this.currentUserRole === 'court' || this.currentUserRole === 'sys_admin') {
+      if (plot.status === "Pending") return 0xf59e0b;  // Glowing Amber (Needs Admin Approval!)
+      if (plot.status === "Disputed") return 0xef4444; // Bright Red (Court Injunction Active)
+      if (isListed) return 0x22c55e;                   // Green (Clear & Listed)
+      return 0x38bdf8;                                 // Sky Blue (Clear & Idle)
+    }
+
+    // 3. Customer / Buyer Map Lens: Highlighting parcels available for purchase
+    if (this.currentUserRole === 'buyer' || this.currentUserRole === 'public') {
+      if (isListed) return 0x22c55e;   // Bright Emerald Green (BUY NOW - Available for purchase)
+      if (plot.status === "Clear") return 0x1e293b; // Dim Charcoal / Not for sale (idle)
+      if (plot.status === "Pending") return 0x475569; // Slate Gray (Pending Verification)
+      if (plot.status === "Disputed") return 0x7f1d1d; // Dark Muted Maroon (Legal Dispute)
+    }
+
+    // Fallback standard real-time state color rule
     if (plot.status === "Disputed") return 0xef4444; // Red
     if (plot.status === "Pending") return 0xf59e0b;  // Amber
-    if (plot.status === "Clear") {
-      if (plot.active_ask !== null && plot.active_ask !== undefined) {
-        return 0x22c55e; // Green (Clear with active Ask)
-      }
-      return 0x3b82f6;   // Blue (Clear, not listed)
-    }
-    return 0x64748b;
+    if (isListed) return 0x22c55e;                   // Green
+    return 0x3b82f6;                                 // Blue
   }
 
   updateMeshStyles() {
@@ -200,10 +231,32 @@ export class PlotViewer3D {
       const mesh = group.userData.mesh;
       const lines = group.userData.edgeLines;
 
+      const isOwner = this.currentUserOwnerId && plot.owner_id === this.currentUserOwnerId;
+      const isListed = plot.status === 'Clear' && plot.active_ask !== null && plot.active_ask !== undefined;
+
+      // Filter Visibility
+      let isVisible = true;
+      if (this.viewFilter === 'available' && !isListed) isVisible = false;
+      if (this.viewFilter === 'my_plots' && !isOwner) isVisible = false;
+      if (this.viewFilter === 'pending' && plot.status !== 'Pending') isVisible = false;
+      if (this.viewFilter === 'disputed' && plot.status !== 'Disputed') isVisible = false;
+
+      group.visible = isVisible;
+      if (!isVisible) return;
+
       mesh.material.color.setHex(this.getPlotColor(plot));
 
-      const isOwner = this.currentUserOwnerId && plot.owner_id === this.currentUserOwnerId;
-      lines.material.color.setHex(isOwner ? 0xffffff : 0x000000);
+      // Outline styling
+      if (isOwner) {
+        lines.material.color.setHex(0xffffff); // Bold White border for owned plots
+        lines.material.linewidth = 3;
+      } else if (this.currentUserRole === 'owner_seller') {
+        lines.material.color.setHex(0x334155); // Faint borders for others in seller view
+        lines.material.linewidth = 1;
+      } else {
+        lines.material.color.setHex(0x0f172a);
+        lines.material.linewidth = 1;
+      }
     });
   }
 
