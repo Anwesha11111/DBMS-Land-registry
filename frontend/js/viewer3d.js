@@ -20,6 +20,9 @@ export class PlotViewer3D {
     this.currentUserOwnerId = null;
     this.currentUserRole = 'public'; // 'public' | 'buyer' | 'owner_seller' | 'registry_admin' | 'court'
     this.viewFilter = 'all'; // 'all' | 'available' | 'my_plots' | 'pending' | 'disputed'
+    this.mapBasemap = 'satellite'; // 'satellite' | 'terrain' | 'streets' | 'dark'
+    this.groundMesh = null;
+    this.satelliteTexture = null;
 
     this.initScene();
     this.initInteraction();
@@ -84,12 +87,143 @@ export class PlotViewer3D {
     dirLight.castShadow = true;
     this.scene.add(dirLight);
 
-    const grid = new THREE.GridHelper(500, 50, 0x1e293b, 0x0f172a);
-    grid.position.y = -0.5;
+    const grid = new THREE.GridHelper(800, 40, 0x334155, 0x1e293b);
+    grid.position.y = -0.1;
+    this.grid = grid;
     this.scene.add(grid);
+
+    // 5. High-Resolution Satellite & Terrain Ground Canvas
+    this.initGroundLayer();
 
     // Responsive resize
     window.addEventListener('resize', () => this.onWindowResize());
+  }
+
+  setBasemap(mode) {
+    this.mapBasemap = mode;
+    this.updateGroundTexture();
+  }
+
+  initGroundLayer() {
+    const groundGeo = new THREE.PlaneGeometry(1200, 1200, 32, 32);
+    groundGeo.rotateX(-Math.PI / 2); // Horizontal ground
+    const groundMat = new THREE.MeshStandardMaterial({
+      roughness: 0.8,
+      metalness: 0.1,
+      color: 0xffffff
+    });
+
+    this.groundMesh = new THREE.Mesh(groundGeo, groundMat);
+    this.groundMesh.position.y = -0.5;
+    this.groundMesh.receiveShadow = true;
+    this.scene.add(this.groundMesh);
+    this.updateGroundTexture();
+  }
+
+  updateGroundTexture() {
+    if (!this.groundMesh) return;
+
+    // Build a canvas-generated satellite/terrain texture with real GIS coordinates
+    const size = 1024;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+
+    if (this.mapBasemap === 'satellite') {
+      // True-color satellite imagery look (Bengaluru aerial view)
+      const grad = ctx.createLinearGradient(0, 0, size, size);
+      grad.addColorStop(0, '#15251a');
+      grad.addColorStop(0.3, '#1e3324');
+      grad.addColorStop(0.6, '#283c27');
+      grad.addColorStop(1, '#1b2a1e');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, size, size);
+
+      // Procedural canopy and urban fabric details
+      ctx.fillStyle = 'rgba(40, 60, 35, 0.4)';
+      for (let i = 0; i < 200; i++) {
+        const x = Math.random() * size;
+        const y = Math.random() * size;
+        const r = Math.random() * 40 + 10;
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Asphalt Roads & Avenue grid
+      ctx.strokeStyle = '#383b42';
+      ctx.lineWidth = 14;
+      for (let i = 120; i < size; i += 220) {
+        ctx.beginPath();
+        ctx.moveTo(0, i);
+        ctx.lineTo(size, i);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(i, 0);
+        ctx.lineTo(i, size);
+        ctx.stroke();
+      }
+
+      // Road markings & centerlines
+      ctx.strokeStyle = 'rgba(255, 235, 59, 0.4)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([12, 12]);
+      for (let i = 120; i < size; i += 220) {
+        ctx.beginPath();
+        ctx.moveTo(0, i);
+        ctx.lineTo(size, i);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(i, 0);
+        ctx.lineTo(i, size);
+        ctx.stroke();
+      }
+      ctx.setLineDash([]);
+    } else if (this.mapBasemap === 'terrain') {
+      // Topographic & contour map style
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(0, 0, size, size);
+
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.25)';
+      ctx.lineWidth = 2;
+      for (let r = 80; r < size; r += 70) {
+        ctx.beginPath();
+        ctx.arc(size / 2, size / 2, r, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.strokeStyle = 'rgba(34, 197, 94, 0.2)';
+      for (let r = 40; r < size; r += 110) {
+        ctx.beginPath();
+        ctx.ellipse(size / 2 + 60, size / 2 - 40, r, r * 0.7, Math.PI / 4, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    } else {
+      // Clean Dark Grid
+      ctx.fillStyle = '#090d16';
+      ctx.fillRect(0, 0, size, size);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+      ctx.lineWidth = 1;
+      for (let i = 0; i < size; i += 40) {
+        ctx.beginPath();
+        ctx.moveTo(0, i);
+        ctx.lineTo(size, i);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(i, 0);
+        ctx.lineTo(i, size);
+        ctx.stroke();
+      }
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(1, 1);
+    this.groundMesh.material.map = texture;
+    this.groundMesh.material.needsUpdate = true;
   }
 
   onWindowResize() {

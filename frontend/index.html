@@ -8,6 +8,9 @@
   <!-- Three.js and OrbitControls -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <!-- Leaflet CSS & JS for Real Interactive Google/OSM Satellite & Terrain Mapping -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
   <!-- Header -->
@@ -36,13 +39,21 @@
 
   <!-- Main Container -->
   <div class="app-container">
-    <!-- 3D Viewport -->
+    <!-- View Mode Switcher (3D Cadastre vs Satellite / Terrain Maps) -->
+    <div class="view-mode-bar">
+      <button id="btn-mode-3d" class="btn btn-mode active">🏢 3D Cadastre</button>
+      <button id="btn-mode-satellite" class="btn btn-mode">🛰️ Satellite View</button>
+      <button id="btn-mode-terrain" class="btn btn-mode">🏔️ Terrain & Topo</button>
+      <button id="btn-mode-streets" class="btn btn-mode">🗺️ Streets</button>
+    </div>
+
+    <!-- 3D Viewport Container -->
     <div id="viewport-container">
       <div id="plot-tooltip" class="plot-hover-tooltip hidden"></div>
       
       <!-- Role Lens / Quick Filter Selector -->
       <div id="map-lens-bar" class="map-lens-container">
-        <span style="font-weight: 600; color: #94a3b8; font-size: 0.78rem; text-transform: uppercase;">Map View Lens:</span>
+        <span style="font-weight: 600; color: #94a3b8; font-size: 0.78rem; text-transform: uppercase;">Filter:</span>
         <button class="btn btn-lens active" data-filter="all">All Parcels</button>
         <button class="btn btn-lens" data-filter="available">Available to Buy (Green)</button>
         <button id="lens-my-plots" class="btn btn-lens hidden" data-filter="my_plots">My Land (Seller View)</button>
@@ -61,6 +72,9 @@
         </div>
       </div>
     </div>
+
+    <!-- 2D Real Interactive Satellite / Terrain Map Container -->
+    <div id="real-map-container" class="hidden"></div>
 
     <!-- Right Side Panel: Plot Details & Order Book -->
     <div id="side-panel" class="side-panel">
@@ -171,16 +185,138 @@
     let selectedPlot = null;
     let currentUser = null;
     let userPrivateKey = null;
+    let leafletMap = null;
+    let leafletTileLayer = null;
+    let leafletPolygonGroup = null;
+    let allPlotsCache = [];
+    let currentMapMode = '3d'; // '3d' | 'satellite' | 'terrain' | 'streets'
 
     // Initialize 3D Viewer
     viewer = new PlotViewer3D('viewport-container', (plot) => onPlotClicked(plot));
+
+    // Initialize Real Leaflet Map (Satellite / Terrain / Streets)
+    function initRealMap() {
+      if (leafletMap) return;
+
+      const mapContainer = document.getElementById('real-map-container');
+      leafletMap = L.map(mapContainer, {
+        zoomControl: true,
+        attributionControl: false
+      }).setView([12.9720, 77.6370], 16);
+
+      // Map Tile Providers (Google/Esri Satellite, USGS Terrain, OpenStreetMap)
+      const tileProviders = {
+        satellite: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        terrain: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+        streets: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+      };
+
+      leafletTileLayer = L.tileLayer(tileProviders.satellite, {
+        maxZoom: 19
+      }).addTo(leafletMap);
+
+      leafletPolygonGroup = L.layerGroup().addTo(leafletMap);
+    }
+
+    function switchViewMode(mode) {
+      currentMapMode = mode;
+      const viewport3D = document.getElementById('viewport-container');
+      const realMap = document.getElementById('real-map-container');
+
+      document.querySelectorAll('.btn-mode').forEach(b => b.classList.remove('active'));
+
+      if (mode === '3d') {
+        viewport3D.classList.remove('hidden');
+        realMap.classList.add('hidden');
+        document.getElementById('btn-mode-3d').classList.add('active');
+        viewer.setBasemap('dark');
+      } else {
+        initRealMap();
+        viewport3D.classList.add('hidden');
+        realMap.classList.remove('hidden');
+
+        // Update active button
+        const btnId = mode === 'satellite' ? 'btn-mode-satellite' : (mode === 'terrain' ? 'btn-mode-terrain' : 'btn-mode-streets');
+        document.getElementById(btnId).classList.add('active');
+
+        // Change Leaflet tiles
+        const urls = {
+          satellite: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+          terrain: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+          streets: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+        };
+        leafletTileLayer.setUrl(urls[mode] || urls.satellite);
+
+        // Tell Leaflet to recalculate container dimensions
+        setTimeout(() => {
+          leafletMap.invalidateSize();
+          renderPlotsOnRealMap(allPlotsCache);
+        }, 100);
+      }
+    }
+
+    function renderPlotsOnRealMap(plots) {
+      if (!leafletMap || !leafletPolygonGroup) return;
+      leafletPolygonGroup.clearLayers();
+
+      plots.forEach(plot => {
+        if (!plot.geojson || !plot.geojson.coordinates) return;
+        // GeoJSON uses [lon, lat], Leaflet Polygon expects [lat, lon]
+        const latlngs = plot.geojson.coordinates[0].map(c => [c[1], c[0]]);
+
+        const isOwner = currentUser && currentUser.owner && plot.owner_id === currentUser.owner.owner_id;
+        const isListed = plot.status === 'Clear' && plot.active_ask !== null && plot.active_ask !== undefined;
+
+        let fillColor = '#3b82f6'; // Blue
+        if (plot.status === 'Disputed') fillColor = '#ef4444'; // Red
+        else if (plot.status === 'Pending') fillColor = '#f59e0b'; // Amber
+        else if (isListed) fillColor = '#22c55e'; // Green
+
+        const polygon = L.polygon(latlngs, {
+          color: isOwner ? '#ffffff' : fillColor,
+          weight: isOwner ? 3 : 2,
+          fillColor: fillColor,
+          fillOpacity: 0.55
+        }).addTo(leafletPolygonGroup);
+
+        // Tooltip & Click behavior matching 3D
+        const priceLabel = plot.active_ask ? `₹${Number(plot.active_ask).toLocaleString()}` : (plot.best_bid ? `Best Bid: ₹${Number(plot.best_bid).toLocaleString()}` : 'Not listed');
+        polygon.bindTooltip(`
+          <div style="font-family: sans-serif; font-size: 12px; line-height: 1.4;">
+            <strong style="color: #0284c7;">${plot.plot_id}</strong><br>
+            <b>Status:</b> ${plot.status}<br>
+            <b>Price:</b> ${priceLabel}<br>
+            <b>Area:</b> ${plot.area_sqft ? Math.round(plot.area_sqft).toLocaleString() + ' sq ft' : '--'}
+          </div>
+        `, { sticky: true });
+
+        polygon.on('click', () => {
+          onPlotClicked(plot);
+        });
+      });
+
+      // Fit map view to bounds of all parcels
+      if (plots.length > 0 && leafletPolygonGroup.getLayers().length > 0) {
+        const bounds = L.featureGroup(leafletPolygonGroup.getLayers()).getBounds();
+        leafletMap.fitBounds(bounds, { padding: [30, 30] });
+      }
+    }
+
+    document.getElementById('btn-mode-3d').onclick = () => switchViewMode('3d');
+    document.getElementById('btn-mode-satellite').onclick = () => switchViewMode('satellite');
+    document.getElementById('btn-mode-terrain').onclick = () => switchViewMode('terrain');
+    document.getElementById('btn-mode-streets').onclick = () => switchViewMode('streets');
 
     async function loadPlots() {
       try {
         const res = await fetch('/plots');
         const data = await res.json();
         if (data.plots) {
+          allPlotsCache = data.plots;
           viewer.loadPlots(data.plots);
+          if (currentMapMode !== '3d') {
+            renderPlotsOnRealMap(data.plots);
+          }
         }
       } catch (e) {
         console.error('Error loading plots:', e);
