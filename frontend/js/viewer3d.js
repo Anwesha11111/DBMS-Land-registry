@@ -53,21 +53,24 @@ export class PlotViewer3D {
       return;
     }
 
-    // 2. Three.js Setup
+    // 2. Three.js Setup: Bright sunny sky & modern atmospheric look
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x080c14);
-    this.scene.fog = new THREE.FogExp2(0x080c14, 0.001);
+    this.scene.background = new THREE.Color(0x93c5fd); // Light atmospheric sky blue
+    this.scene.fog = new THREE.FogExp2(0x93c5fd, 0.0006);
 
     const width = this.container.clientWidth;
     const height = this.container.clientHeight;
 
-    this.camera = new THREE.PerspectiveCamera(45, width / height, 1, 2000);
-    this.camera.position.set(0, 150, 200);
+    this.camera = new THREE.PerspectiveCamera(45, width / height, 1, 3500);
+    this.camera.position.set(0, 180, 260);
 
-    this.renderer = new THREE.WebGLRenderer({ antialias: true });
+    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     this.renderer.setSize(width, height);
-    this.renderer.setPixelRatio(window.devicePixelRatio);
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.15;
     this.container.appendChild(this.renderer.domElement);
 
     // 3. OrbitControls
@@ -75,20 +78,34 @@ export class PlotViewer3D {
       this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
       this.controls.enableDamping = true;
       this.controls.dampingFactor = 0.05;
-      this.controls.maxPolarAngle = Math.PI / 2 - 0.05; // Don't go below ground
+      this.controls.maxPolarAngle = Math.PI / 2 - 0.02; // Keep above ground
+      this.controls.minDistance = 20;
+      this.controls.maxDistance = 1200;
     }
 
-    // 4. Lights & Grid
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
-    this.scene.add(ambientLight);
+    // 4. Natural Sunlight & Environmental Illumination
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x475569, 0.85);
+    hemiLight.position.set(0, 300, 0);
+    this.scene.add(hemiLight);
 
-    const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
-    dirLight.position.set(100, 200, 100);
-    dirLight.castShadow = true;
-    this.scene.add(dirLight);
+    const sunLight = new THREE.DirectionalLight(0xfffaf0, 1.35);
+    sunLight.position.set(250, 400, 180);
+    sunLight.castShadow = true;
+    sunLight.shadow.mapSize.width = 2048;
+    sunLight.shadow.mapSize.height = 2048;
+    sunLight.shadow.camera.near = 10;
+    sunLight.shadow.camera.far = 1200;
+    const d = 400;
+    sunLight.shadow.camera.left = -d;
+    sunLight.shadow.camera.right = d;
+    sunLight.shadow.camera.top = d;
+    sunLight.shadow.camera.bottom = -d;
+    sunLight.shadow.bias = -0.0005;
+    this.scene.add(sunLight);
 
-    const grid = new THREE.GridHelper(800, 40, 0x334155, 0x1e293b);
-    grid.position.y = -0.1;
+    // Subtle Cadastre Reference Grid
+    const grid = new THREE.GridHelper(1600, 80, 0x94a3b8, 0xcfd8dc);
+    grid.position.y = 0.1;
     this.grid = grid;
     this.scene.add(grid);
 
@@ -105,16 +122,16 @@ export class PlotViewer3D {
   }
 
   initGroundLayer() {
-    const groundGeo = new THREE.PlaneGeometry(1200, 1200, 32, 32);
+    const groundGeo = new THREE.PlaneGeometry(2400, 2400, 64, 64);
     groundGeo.rotateX(-Math.PI / 2); // Horizontal ground
     const groundMat = new THREE.MeshStandardMaterial({
-      roughness: 0.8,
-      metalness: 0.1,
+      roughness: 0.85,
+      metalness: 0.05,
       color: 0xffffff
     });
 
     this.groundMesh = new THREE.Mesh(groundGeo, groundMat);
-    this.groundMesh.position.y = -0.5;
+    this.groundMesh.position.y = 0;
     this.groundMesh.receiveShadow = true;
     this.scene.add(this.groundMesh);
     this.updateGroundTexture();
@@ -123,100 +140,68 @@ export class PlotViewer3D {
   updateGroundTexture() {
     if (!this.groundMesh) return;
 
-    // Build a canvas-generated satellite/terrain texture with real GIS coordinates
     const size = 1024;
     const canvas = document.createElement('canvas');
     canvas.width = size;
     canvas.height = size;
     const ctx = canvas.getContext('2d');
 
-    if (this.mapBasemap === 'satellite') {
-      // True-color satellite imagery look (Bengaluru aerial view)
-      const grad = ctx.createLinearGradient(0, 0, size, size);
-      grad.addColorStop(0, '#15251a');
-      grad.addColorStop(0.3, '#1e3324');
-      grad.addColorStop(0.6, '#283c27');
-      grad.addColorStop(1, '#1b2a1e');
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, size, size);
+    // Vibrant Aerial Cartography with Park Greenery, Roads and Subdivision Blocks
+    const grad = ctx.createLinearGradient(0, 0, size, size);
+    grad.addColorStop(0, '#365314');   // Lush forest green
+    grad.addColorStop(0.3, '#3f6212'); // Rich lawn green
+    grad.addColorStop(0.7, '#2e491a'); // Natural turf
+    grad.addColorStop(1, '#4d7c0f');   // Vibrant parkland
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, size, size);
 
-      // Procedural canopy and urban fabric details
-      ctx.fillStyle = 'rgba(40, 60, 35, 0.4)';
-      for (let i = 0; i < 200; i++) {
-        const x = Math.random() * size;
-        const y = Math.random() * size;
-        const r = Math.random() * 40 + 10;
-        ctx.beginPath();
-        ctx.arc(x, y, r, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      // Asphalt Roads & Avenue grid
-      ctx.strokeStyle = '#383b42';
-      ctx.lineWidth = 14;
-      for (let i = 120; i < size; i += 220) {
-        ctx.beginPath();
-        ctx.moveTo(0, i);
-        ctx.lineTo(size, i);
-        ctx.stroke();
-
-        ctx.beginPath();
-        ctx.moveTo(i, 0);
-        ctx.lineTo(i, size);
-        ctx.stroke();
-      }
-
-      // Road markings & centerlines
-      ctx.strokeStyle = 'rgba(255, 235, 59, 0.4)';
-      ctx.lineWidth = 2;
-      ctx.setLineDash([12, 12]);
-      for (let i = 120; i < size; i += 220) {
-        ctx.beginPath();
-        ctx.moveTo(0, i);
-        ctx.lineTo(size, i);
-        ctx.stroke();
-
-        ctx.beginPath();
-        ctx.moveTo(i, 0);
-        ctx.lineTo(i, size);
-        ctx.stroke();
-      }
-      ctx.setLineDash([]);
-    } else if (this.mapBasemap === 'terrain') {
-      // Topographic & contour map style
-      ctx.fillStyle = '#1e293b';
-      ctx.fillRect(0, 0, size, size);
-
-      ctx.strokeStyle = 'rgba(56, 189, 248, 0.25)';
-      ctx.lineWidth = 2;
-      for (let r = 80; r < size; r += 70) {
-        ctx.beginPath();
-        ctx.arc(size / 2, size / 2, r, 0, Math.PI * 2);
-        ctx.stroke();
-      }
-      ctx.strokeStyle = 'rgba(34, 197, 94, 0.2)';
-      for (let r = 40; r < size; r += 110) {
-        ctx.beginPath();
-        ctx.ellipse(size / 2 + 60, size / 2 - 40, r, r * 0.7, Math.PI / 4, 0, Math.PI * 2);
-        ctx.stroke();
-      }
-    } else {
-      // Clean Dark Grid
-      ctx.fillStyle = '#090d16';
-      ctx.fillRect(0, 0, size, size);
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
-      ctx.lineWidth = 1;
-      for (let i = 0; i < size; i += 40) {
-        ctx.beginPath();
-        ctx.moveTo(0, i);
-        ctx.lineTo(size, i);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(i, 0);
-        ctx.lineTo(i, size);
-        ctx.stroke();
+    // Land parcel zoning tiles
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
+    for (let x = 60; x < size; x += 180) {
+      for (let y = 60; y < size; y += 180) {
+        ctx.fillRect(x, y, 140, 140);
       }
     }
+
+    // Procedural trees & landscape foliage
+    ctx.fillStyle = 'rgba(20, 50, 15, 0.55)';
+    for (let i = 0; i < 450; i++) {
+      const x = Math.random() * size;
+      const y = Math.random() * size;
+      const r = Math.random() * 20 + 5;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Asphalt Avenue Grid with Sidewalks
+    const roadCoords = [140, 360, 580, 800];
+    
+    // Sidewalks
+    ctx.strokeStyle = '#cbd5e1';
+    ctx.lineWidth = 34;
+    roadCoords.forEach(c => {
+      ctx.beginPath(); ctx.moveTo(0, c); ctx.lineTo(size, c); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(c, 0); ctx.lineTo(c, size); ctx.stroke();
+    });
+
+    // Asphalt Road Surface
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 22;
+    roadCoords.forEach(c => {
+      ctx.beginPath(); ctx.moveTo(0, c); ctx.lineTo(size, c); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(c, 0); ctx.lineTo(c, size); ctx.stroke();
+    });
+
+    // Yellow Lane Centerlines
+    ctx.strokeStyle = '#fef08a';
+    ctx.lineWidth = 2.5;
+    ctx.setLineDash([14, 14]);
+    roadCoords.forEach(c => {
+      ctx.beginPath(); ctx.moveTo(0, c); ctx.lineTo(size, c); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(c, 0); ctx.lineTo(c, size); ctx.stroke();
+    });
+    ctx.setLineDash([]);
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.wrapS = THREE.RepeatWrapping;
@@ -300,12 +285,12 @@ export class PlotViewer3D {
     });
 
     const extrudeSettings = {
-      depth: 6,
+      depth: 12,
       bevelEnabled: true,
-      bevelSegments: 2,
+      bevelSegments: 3,
       steps: 1,
-      bevelSize: 0.5,
-      bevelThickness: 0.5
+      bevelSize: 1.2,
+      bevelThickness: 1.2
     };
 
     const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
@@ -314,28 +299,49 @@ export class PlotViewer3D {
     const color = this.getPlotColor(plot);
     const material = new THREE.MeshStandardMaterial({
       color: color,
-      roughness: 0.4,
-      metalness: 0.1,
+      roughness: 0.25,
+      metalness: 0.15,
       transparent: true,
-      opacity: 0.88
+      opacity: 0.94
     });
 
     const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.y = 1;
     mesh.castShadow = true;
     mesh.receiveShadow = true;
 
-    // Edge wireframe outline
+    // Glowing border outline
     const edges = new THREE.EdgesGeometry(geometry);
     const isOwner = this.currentUserOwnerId && plot.owner_id === this.currentUserOwnerId;
     const lineMaterial = new THREE.LineBasicMaterial({
-      color: isOwner ? 0xffffff : 0x000000,
-      linewidth: isOwner ? 3 : 1
+      color: isOwner ? 0xffffff : 0x0284c7,
+      linewidth: isOwner ? 3 : 1.5
     });
     const edgeLines = new THREE.LineSegments(edges, lineMaterial);
+    edgeLines.position.y = 1;
 
+    // Add a miniature 3D architectural villa / building pavilion on clear plots to make them visually impressive
     const group = new THREE.Group();
     group.add(mesh);
     group.add(edgeLines);
+
+    if (plot.status === 'Clear') {
+      const houseGeo = new THREE.BoxGeometry(14, 10, 14);
+      const houseMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.3 });
+      const houseMesh = new THREE.Mesh(houseGeo, houseMat);
+      houseMesh.position.set(0, 18, 0);
+      houseMesh.castShadow = true;
+      group.add(houseMesh);
+
+      // Roof
+      const roofGeo = new THREE.ConeGeometry(12, 6, 4);
+      roofGeo.rotateY(Math.PI / 4);
+      const roofMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.4 });
+      const roofMesh = new THREE.Mesh(roofGeo, roofMat);
+      roofMesh.position.set(0, 26, 0);
+      roofMesh.castShadow = true;
+      group.add(roofMesh);
+    }
     group.userData = { plot: plot, mesh: mesh, edgeLines: edgeLines };
 
     this.scene.add(group);
