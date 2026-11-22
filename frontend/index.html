@@ -33,6 +33,7 @@
       </div>
 
       <button id="btn-open-login" class="btn">Sign In / Register</button>
+      <button id="btn-open-sql-lab" class="btn" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #fff; font-weight: 600;">🧪 SQL Lab / Evaluator</button>
       <a href="/public-portal" class="btn btn-secondary" target="_blank">Public Verify Portal ↗</a>
     </div>
   </header>
@@ -177,6 +178,89 @@
   </div>
 
   <!-- Main ES Module Client Logic -->
+  <!-- SQL Workbench & Teacher Problem Solver Modal -->
+  <div id="modal-sql-lab" class="modal-backdrop hidden" style="display: none;">
+    <div class="modal" style="max-width: 1050px; width: 92%; max-height: 90vh; display: flex; flex-direction: column;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 12px; margin-bottom: 16px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 1.5rem;">🧪</span>
+          <div>
+            <h3 style="margin: 0; font-size: 1.25rem;">Interactive SQL Workbench & Viva Evaluator</h3>
+            <p style="margin: 2px 0 0; font-size: 0.8rem; color: var(--text-muted);">
+              Run custom SQL queries against the live database to solve teacher problem statements and inspect execution results.
+            </p>
+          </div>
+        </div>
+        <button id="btn-close-sql-lab" class="btn btn-secondary" style="padding: 4px 10px;">✕</button>
+      </div>
+
+      <div style="display: flex; gap: 16px; flex: 1; min-height: 0; overflow: hidden;">
+        <!-- Left: Challenges & Schema Cheat Sheet -->
+        <div style="width: 320px; flex-shrink: 0; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; padding-right: 6px;">
+          <div>
+            <label style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Teacher Problem Statements</label>
+            <select id="sql-challenge-select" style="width: 100%; margin-top: 6px; padding: 8px; border-radius: 6px; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); color: #fff; font-size: 0.85rem;">
+              <option value="">-- Select a Problem Statement --</option>
+            </select>
+          </div>
+
+          <div id="challenge-detail-card" style="padding: 12px; border-radius: 8px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); font-size: 0.82rem; line-height: 1.4;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <strong id="challenge-title" style="color: #60a5fa;">Select a Problem</strong>
+              <span id="challenge-badge" class="status-pill status-clear" style="font-size: 0.7rem; padding: 2px 6px;">Ready</span>
+            </div>
+            <p id="challenge-desc" style="color: var(--text-muted); margin: 0 0 8px 0;">Pick a challenge above or enter any custom SQL query.</p>
+            <button id="btn-load-hint" class="btn btn-secondary" style="font-size: 0.75rem; padding: 4px 8px; width: 100%;">💡 Load Solution Query</button>
+          </div>
+
+          <!-- Schema Cheat Sheet -->
+          <div style="flex: 1; border-top: 1px solid var(--border-color); padding-top: 10px;">
+            <label style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Database Schema Reference</label>
+            <div id="schema-tree" style="margin-top: 8px; font-size: 0.75rem; max-height: 240px; overflow-y: auto;">
+              <!-- Dynamically populated schema reference -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Query Editor & Result Grid -->
+        <div style="flex: 1; display: flex; flex-direction: column; gap: 12px; min-width: 0;">
+          <div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <label style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">SQL Query Editor</label>
+              <span style="font-size: 0.72rem; color: var(--text-muted);">Shortcuts: <kbd style="background: rgba(255,255,255,0.1); padding: 1px 4px; border-radius: 3px;">Ctrl</kbd> + <kbd style="background: rgba(255,255,255,0.1); padding: 1px 4px; border-radius: 3px;">Enter</kbd> to run</span>
+            </div>
+            <textarea id="sql-query-input" rows="7" style="width: 100%; box-sizing: border-box; font-family: 'Courier New', Courier, monospace; font-size: 0.9rem; padding: 10px; border-radius: 6px; background: #0f172a; border: 1px solid var(--border-color); color: #38bdf8; resize: vertical;" placeholder="SELECT plot_id, street_address, area_sqft FROM plot WHERE area_sqft > 8000;"></textarea>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; gap: 8px;">
+              <button id="btn-run-sql" class="btn" style="background: #2563eb; color: #fff; font-weight: 600; padding: 6px 16px;">▶ Run Query</button>
+              <button id="btn-clear-sql" class="btn btn-secondary" style="padding: 6px 12px;">Clear</button>
+            </div>
+            <div id="sql-stats" style="font-size: 0.78rem; color: var(--text-muted); text-align: right;">
+              Ready to execute
+            </div>
+          </div>
+
+          <!-- Error Message Banner -->
+          <div id="sql-error-banner" class="hidden" style="display: none; padding: 8px 12px; background: rgba(239, 68, 68, 0.15); border: 1px solid #ef4444; border-radius: 6px; color: #fca5a5; font-size: 0.8rem; font-family: monospace;"></div>
+
+          <!-- Results Table -->
+          <div style="flex: 1; min-height: 200px; max-height: 320px; overflow: auto; border: 1px solid var(--border-color); border-radius: 6px; background: rgba(0,0,0,0.2);">
+            <table id="sql-results-table" style="width: 100%; border-collapse: collapse; font-size: 0.82rem; text-align: left;">
+              <thead id="sql-results-head" style="position: sticky; top: 0; background: #1e293b; border-bottom: 1px solid var(--border-color);">
+                <tr><th style="padding: 8px 12px; color: var(--text-muted);">Execution Output</th></tr>
+              </thead>
+              <tbody id="sql-results-body">
+                <tr><td style="padding: 24px; text-align: center; color: var(--text-muted);">No query executed yet. Write a query or select a challenge on the left.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script type="module">
     import { generateKeyPair, exportPublicKey, signPayload, savePrivateKey, loadPrivateKey } from '/static/js/crypto.js';
     import { PlotViewer3D } from '/static/js/viewer3d.js';
@@ -671,6 +755,202 @@
 
     loadPlots();
     updateUserUI();
+
+    // ==========================================
+    // SQL Workbench & Teacher Evaluator Logic
+    // ==========================================
+    const modalSqlLab = document.getElementById('modal-sql-lab');
+    const btnOpenSqlLab = document.getElementById('btn-open-sql-lab');
+    const btnCloseSqlLab = document.getElementById('btn-close-sql-lab');
+    const sqlChallengeSelect = document.getElementById('sql-challenge-select');
+    const challengeTitle = document.getElementById('challenge-title');
+    const challengeDesc = document.getElementById('challenge-desc');
+    const challengeBadge = document.getElementById('challenge-badge');
+    const btnLoadHint = document.getElementById('btn-load-hint');
+    const schemaTree = document.getElementById('schema-tree');
+    const sqlQueryInput = document.getElementById('sql-query-input');
+    const btnRunSql = document.getElementById('btn-run-sql');
+    const btnClearSql = document.getElementById('btn-clear-sql');
+    const sqlStats = document.getElementById('sql-stats');
+    const sqlErrorBanner = document.getElementById('sql-error-banner');
+    const sqlResultsHead = document.getElementById('sql-results-head');
+    const sqlResultsBody = document.getElementById('sql-results-body');
+
+    let loadedChallenges = [];
+    let currentSelectedChallenge = null;
+
+    btnOpenSqlLab.onclick = () => {
+      modalSqlLab.classList.remove('hidden');
+      modalSqlLab.style.display = 'flex';
+      fetchChallengesAndSchema();
+    };
+
+    btnCloseSqlLab.onclick = () => {
+      modalSqlLab.classList.add('hidden');
+      modalSqlLab.style.display = 'none';
+    };
+
+    async function fetchChallengesAndSchema() {
+      try {
+        const res = await fetch('/api/sql/challenges');
+        const data = await res.json();
+        if (data.status === 'success') {
+          loadedChallenges = data.challenges || [];
+          
+          // Populate challenges dropdown
+          sqlChallengeSelect.innerHTML = '<option value="">-- Select a Problem Statement --</option>';
+          loadedChallenges.forEach((ch, idx) => {
+            const opt = document.createElement('option');
+            opt.value = ch.id;
+            opt.textContent = `[${ch.difficulty}] ${ch.title}`;
+            sqlChallengeSelect.appendChild(opt);
+          });
+
+          // Populate schema reference
+          renderSchemaReference(data.schemas || {});
+        }
+      } catch (err) {
+        console.error('Failed to load challenges/schema:', err);
+      }
+    }
+
+    function renderSchemaReference(schemas) {
+      schemaTree.innerHTML = '';
+      for (const [table, cols] of Object.entries(schemas)) {
+        const details = document.createElement('details');
+        details.style.marginBottom = '6px';
+        details.style.background = 'rgba(255,255,255,0.02)';
+        details.style.borderRadius = '4px';
+        details.style.padding = '4px 6px';
+
+        const summary = document.createElement('summary');
+        summary.style.cursor = 'pointer';
+        summary.style.fontWeight = '600';
+        summary.style.color = '#93c5fd';
+        summary.textContent = `📁 ${table} (${cols.length})`;
+        details.appendChild(summary);
+
+        const colList = document.createElement('div');
+        colList.style.padding = '4px 0 2px 14px';
+        colList.style.lineHeight = '1.4';
+        cols.forEach(c => {
+          const item = document.createElement('div');
+          item.innerHTML = `<span style="color:#e2e8f0; font-family:monospace;">${c.column}</span> <span style="color:var(--text-muted); font-size:0.7rem;">${c.type}</span>`;
+          colList.appendChild(item);
+        });
+
+        details.appendChild(colList);
+        schemaTree.appendChild(details);
+      }
+    }
+
+    sqlChallengeSelect.onchange = () => {
+      const selectedId = sqlChallengeSelect.value;
+      currentSelectedChallenge = loadedChallenges.find(c => c.id === selectedId);
+      if (currentSelectedChallenge) {
+        challengeTitle.textContent = currentSelectedChallenge.title;
+        challengeDesc.textContent = currentSelectedChallenge.description;
+        challengeBadge.textContent = currentSelectedChallenge.difficulty;
+        challengeBadge.className = currentSelectedChallenge.difficulty.includes('Easy') ? 'status-pill status-clear' : 'status-pill status-pending';
+        sqlQueryInput.value = currentSelectedChallenge.default_query || '';
+      } else {
+        challengeTitle.textContent = 'Select a Problem';
+        challengeDesc.textContent = 'Pick a challenge above or enter any custom SQL query.';
+        challengeBadge.textContent = 'Ready';
+        challengeBadge.className = 'status-pill status-clear';
+      }
+    };
+
+    btnLoadHint.onclick = () => {
+      if (currentSelectedChallenge && currentSelectedChallenge.hint) {
+        sqlQueryInput.value = currentSelectedChallenge.hint;
+      }
+    };
+
+    btnClearSql.onclick = () => {
+      sqlQueryInput.value = '';
+      sqlErrorBanner.style.display = 'none';
+      sqlResultsHead.innerHTML = '<tr><th style="padding: 8px 12px; color: var(--text-muted);">Execution Output</th></tr>';
+      sqlResultsBody.innerHTML = '<tr><td style="padding: 24px; text-align: center; color: var(--text-muted);">Editor cleared.</td></tr>';
+      sqlStats.textContent = 'Ready to execute';
+    };
+
+    // Keyboard shortcut: Ctrl + Enter
+    sqlQueryInput.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        runSqlQuery();
+      }
+    });
+
+    btnRunSql.onclick = runSqlQuery;
+
+    async function runSqlQuery() {
+      const query = sqlQueryInput.value.trim();
+      if (!query) {
+        alert('Please enter a SQL query to execute.');
+        return;
+      }
+
+      btnRunSql.disabled = true;
+      btnRunSql.textContent = 'Running...';
+      sqlErrorBanner.style.display = 'none';
+      sqlStats.textContent = 'Executing query...';
+
+      try {
+        const res = await fetch('/api/sql/execute', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query })
+        });
+        const data = await res.json();
+
+        if (res.ok && data.status === 'success') {
+          sqlStats.innerHTML = `<span style="color:#10b981;">✓ Success</span> | <strong>${data.row_count}</strong> row(s) | <strong>${data.execution_time_ms} ms</strong> | <span style="color:var(--text-muted); font-size:0.72rem;">${data.engine}</span>`;
+
+          // Render Table Header
+          let thHtml = '<tr>';
+          (data.columns || []).forEach(col => {
+            thHtml += `<th style="padding: 8px 12px; color: #94a3b8; font-weight: 600; border-bottom: 1px solid var(--border-color);">${col}</th>`;
+          });
+          thHtml += '</tr>';
+          sqlResultsHead.innerHTML = thHtml;
+
+          // Render Table Body
+          if (data.rows && data.rows.length > 0) {
+            let trHtml = '';
+            data.rows.forEach(row => {
+              trHtml += '<tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">';
+              row.forEach(val => {
+                const displayVal = val === null ? '<span style="color:var(--text-muted); font-style:italic;">NULL</span>' : escapeHtml(String(val));
+                trHtml += `<td style="padding: 8px 12px; font-family: monospace; font-size: 0.8rem;">${displayVal}</td>`;
+              });
+              trHtml += '</tr>';
+            });
+            sqlResultsBody.innerHTML = trHtml;
+          } else {
+            sqlResultsBody.innerHTML = '<tr><td colspan="' + (data.columns.length || 1) + '" style="padding: 24px; text-align: center; color: var(--text-muted);">(0 rows returned)</td></tr>';
+          }
+        } else {
+          sqlStats.innerHTML = `<span style="color:#ef4444;">✗ Query Failed</span>`;
+          sqlErrorBanner.textContent = data.error || 'Execution failed.';
+          sqlErrorBanner.style.display = 'block';
+          sqlResultsHead.innerHTML = '<tr><th style="padding: 8px 12px; color: #ef4444;">Error</th></tr>';
+          sqlResultsBody.innerHTML = `<tr><td style="padding: 16px; color: #fca5a5; font-family: monospace;">${escapeHtml(data.error || 'Unknown database error')}</td></tr>`;
+        }
+      } catch (err) {
+        sqlStats.innerHTML = `<span style="color:#ef4444;">✗ Network Error</span>`;
+        sqlErrorBanner.textContent = err.message;
+        sqlErrorBanner.style.display = 'block';
+      } finally {
+        btnRunSql.disabled = false;
+        btnRunSql.textContent = '▶ Run Query';
+      }
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+    }
   </script>
 </body>
 </html>

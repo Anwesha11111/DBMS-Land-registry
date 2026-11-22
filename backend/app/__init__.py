@@ -35,6 +35,7 @@ def create_app(test_config=None) -> Flask:
     from backend.routes.search import search_bp
     from backend.routes.public import public_bp
     from backend.routes.admin import admin_bp
+    from backend.routes.sql_console import sql_console_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(plots_bp)
@@ -45,6 +46,7 @@ def create_app(test_config=None) -> Flask:
     app.register_blueprint(search_bp)
     app.register_blueprint(public_bp)
     app.register_blueprint(admin_bp)
+    app.register_blueprint(sql_console_bp)
 
     # /health Endpoint
     @app.route("/health", methods=["GET"])
